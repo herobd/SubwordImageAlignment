@@ -1,0 +1,24 @@
+Copyright (c) 2013, Brigham Young University.
+All rights reserved.
+
+This software is protected by copyright and also includes the
+embodiment of an invention that has a patent pending.  Any use, copy,
+or other dealings in the software must be licensed by Brigham Young
+University.  For licensing information, contact the Brigham Young
+University Technology Transfer Office:
+
+  Technology Transfer Office
+  3760 Harold B. Lee Library
+  Brigham Young University
+  Provo, UT 84602-6844
+  Phone: (801) 422-6266
+  FAX: (801) 422-0463
+
+----------------------------------------------------------------------
+
+The software also includes a couple of small sections of code to which
+Brigham Young University does not own the copyright, used under terms
+accompanying those sections of code.  Those sections and their
+respective terms of use are clearly marked in comments within the code
+and/or with comments in the portions of the documentation related to
+those sections of code, and/or in the file ./doc/index.html 

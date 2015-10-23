@@ -1,0 +1,332 @@
+<html>
+<head><title>BYU Handwriting Recognition Project - version 2013.08.30</title></head>
+<body style="font-family: Arial, Helvetica, sans-serif; font-size: small;">
+<h2>BYU Handwriting Recognition Project - version 2013.08.30</h2>
+(Documentation by Doug Kennard)
+<hr>
+<p>This release contains portions of my PhD <a href="./kennard_dissertation.pdf">dissertation</a> research
+code for offline handwriting recognition.  <b>WARNING:</b> this is
+research code, so it isn't pretty, robust, or user-friendly.  It has gone
+through many changes over time, so some of the comments in the code
+may be out of date or even misleading, and some functionality that appears to be in the library may not have been completed.  If you use the code for academic papers, please cite either the dissertation or our paper: Douglas J. Kennard, William A. Barrett, and Thomas W. Sederberg. Word Warping for Offline Handwriting Recognition. In <i>International Conference on Document Analysis and Recognition (ICDAR)</i>, pages 1349-1353, Beijing, China, Sep. 2011.</p>
+
+<p>Directory structure:
+<pre>
+  /apps_src           - source code of applications for doing recognition,
+                        measuring recognition result accuracies,
+                        and doing recognition using word clustering
+  /src                - source code for the library used by the applications
+  /bin                - compiled binaries for the applications
+  /doc                - documentation
+    /index.html       - this documentation page
+    /html/index.html  - documentation for the library
+  /lib                - compiled static library linked by the applications
+  /obj                - object files generated during compilation
+  /datasets           - contains the Smith dataset
+</pre>
+</p>
+
+<h2>Library</h2>
+<div id="librarydiv" style="margin-left: 20px;">
+<p><a href="./html/classes.html">Documentation for the library</a> in html format is generated automatically from the code and comments within the code using a program called <a href="http://www.doxygen.org" target="_blank">Doxygen</a>. To update the documentation after changes to the library, run doxygen from within the <code>src/</code> directory.  The configuration file for doxygen is <code>src/Doxyfile</code>.</p>
+<p>The library initially had a bunch of extra research code and various image processing functions that aren't directly related to this project.  I have removed much of that code for this release, but some still remains.  The object classes of most interest are the <code>DImage</code> class (for loading/saving/manipulating images) and the <code>DMorphInk</code> class (which contains the core algorithms for the word warping/morphing comparisons used by our handwriting recognition method).  The rest of the library consists of supporting code or else is unrelated.</p>
+<p><b>Dependencies:</b>  Support for some image file formats requires third-party libraries (<a href="http://libpng.sourceforge.net/index.html" target="_blank">libpng</a>, <a href="http://www.libtiff.org" target="blank">libtiff</a>, and <a href="http://www.ijg.org/" target="_blank">libjpeg</a>) that are not distributed with this code, but development libraries for all of them are easily installed using the ubuntu software center or apt-get on ubuntu linux distributions.  The  section entitled "<a href="#legalsection">Legal</a>" at the bottom of this page includes the terms by which our library links to those libraries.  If you want to read bmp files, you will also need netpbm installed so we can execute the <code>bmptopnm</code> utility.  For multiple threads, we use the pthreads library, and you will need the development version of the library installed so those headers can be included by our code.</p>
+<p><b>Compiling:</b> Once all dependencies are taken care of, run <code>make</code> from within the <code>src/</code> directory.  The Makefile generates a static library in the <code>lib/</code> directory called <b><code>libdocumentproject.a</code></b> that the applications can link to when they are compiled.  I have not yet finished cleaning up the code, so lots of warnings are currently generated during compile.</p>
+</div>
+<h2>Applications</h2>
+
+<div id="appsdiv" style="margin-left: 20px;">
+<p>Each application program can be compiled by running <code>make</code> within the respective <code>apps_src/[application]</code> directory.  Compile the library (by running <code>make</code> within the <code>src/</code> directory) before compiling the applications. The application's executable program will be made to the <code>bin/</code> directory.</p>
+<h3>A__word_morphing</h3>
+<div id="appAinset" style="margin-left: 15px;">
+  <p>This program reads in labeled word images (for both training and test data) and generates a result file that includes the top 10 most closely matching training examples (and the associated word matching costs) for each test image.  Each test image is compared to every training example, and the best 10 matches are stored for each.</p>
+  <p>Command-line arguments:
+<pre>
+  dataset_path: path to where the labeled images are (see <a href="#datasetsection">Dataset</a> section)
+  first_training_num: first training image number, typically 0
+  last_training_num: typically is the number of training images minus 1
+  first_test_num: first test image (typically last_training_num+1)
+  last_test_num: last test image number
+  lengthPenalty: penalty for mismatched word lengths ("p" in 4.4.3 of <a href="./kennard_dissertation.pdf">dissertation</a>)
+  numThreads: how many threads to use, ideally one per core (-1 to use all cores)
+  meshSpacingStatic: usually -1 (see 4.9 of <a href="./kennard_dissertation.pdf">dissertation</a>)
+  numRefinesStatic: usually -1 (see 4.9 of <a href="./kennard_dissertation.pdf">dissertation</a>)
+  meshDiv: initial mesh size denominator (see 4.9 of <a href="./kennard_dissertation.pdf">dissertation</a>)
+           4.0 is a reasonable default value
+  bandWidthDP: the Sakoe-Chiba band width parameter (see 4.10 of <a href="./kennard_dissertation.pdf">dissertation</a>)
+  slowPassN: -1 means don't do a fast pass. 0 means only do a fast pass.
+             N>0 means do a fast pass for everything, then do slow pass on the
+             best N matches from the fast pass. (Fast pass is the same
+             algorithm, but only does a single improve step and no refinements)
+  output_file: path/name of the output results file
+</pre>
+  
+For example, to run the program on the Smith dataset, (from the <code>bin/</code> directory) do:
+<pre>
+  word_morphing ../datasets/smith_jhl_vol1_lasso/smith_jhl_vol1_lasso.prj_intermediates/ 0 999 1000 1999 0.1 -1 -1 -1 4.0 14 10 /tmp/smith_results.dat
+
+</pre>
+</p>
+</div>
+
+<h3>B__analyze_datafiles</h3>
+<div id="appBinset" style="margin-left: 15px;">
+  <p>This program reads in results files generated by program A and outputs the accuracy.  If multiple results files are provided, they are assumed to be chunks of the same test (you can split the test into smaller chunks running on multiple computers or multiple nodes of a cluster, each of which generates a results file for that chunk).  This program is not dependent on the library, it just reads in the result file(s), computes the accuracies, and prints the accuracies at the end of all the output that is generated while the program is running.</p>
+  <p>Command-line arguments:
+<pre>
+  trainFirst: first training image number, typically 0
+  trainLast: last training image number
+  testFirst: number of first test image
+  testLast: number of last test image
+  datafile0.dat: path/filename of the result file generated by word_morphing
+  datafileN.dat: (optional) additional results files if test done in chunks
+</pre>
+For example, to find out the accuracy on the Smith dataset using the results file from the example in A__word_morphing (above), do the following from the <code>bin/</code> directory:
+<pre>
+  analyze_datafiles 0 999 1000 1999 /tmp/smith_results.dat
+</pre>
+</p>
+</div>
+
+<h3>C__word_clustering</h3>
+<div id="appCinset" style="margin-left: 15px;">
+<p><b>We have not yet published the improvements made in this program.
+Please keep these improvements and any associated results confidential
+until we do.</b> This program fills the same role (recognition of word
+images) as program A__word_morphing, but in a different manner.
+Instead of comparing each test image to every training image, there is
+a offline preliminary step of clustering the training examples (using
+hierarchical agglomerative clustering / HAC).  The clustering step
+currently is very computational, but only has to be done once for a
+given training set.  Afterward, recognition with that clustered
+training data takes only about a third as much time as it would using
+the method of program A__word_morphing.  During recognition, the
+clustered HAC tree is searched in priority order and branches of the
+tree that are unlikely to contain a matching training example are
+pruned.  As is, the current code will not scale to very large datasets
+because it assumes everything fits in memory, and the HAC clustering
+is exact which is computationally expensive as dataset size increases.
+Using an approximate clustering algorithm and engineering the code to
+allow the clustering and resulting HAC tree to be split over multiple
+machines will make it more scalable.</p>
+
+<p>There is actually source code for three different programs in this
+directory (word_clustering, NxNtrainMatrixChunk, and
+combineNxNChunks).  The main program is word_clustering.  It creates
+an NxN cost matrix for all of the training images (where N is the
+number of training examples and position i,j in the matrix contains
+the word matching cost (distance) between training word i and training
+word j).  It then uses the distances in the NxN matrix to perform
+hierarchical agglomerative clustering of the training examples,
+forming a HAC tree.  Both the NxN matrix and a merge file (recording
+the cluster merging order to form the HAC tree) are saved as
+intermediate steps so they can be reused by the program if it is run
+again using the same training data instead of having to recompute all
+of it again.  The program then performs recognition by searching the
+HAC tree for the mest matches.  The NxNtrainMatrixChunk program allows
+the NxN matrix computation to be split across many different machines,
+each of which computes a portion (chunk) of the matrix.  The
+combineNxNChunks takes those chunks and combines them into a single
+NxN matrix that can be used by the word_clustering program.</p>
+<p>Command-line arguments for word_clustering are similar to those in
+A__word_morphing, except that there is an additional alpha parameter
+that can effect pruning (I set alpha to 1.0) and a topN parameter that
+says to use the topN recognition results in the recognition output.
+Setting alpha to a value greater than 1.0 makes the pruning more
+conservative.</p>
+
+</div>
+
+<h3>D__chinese_word_morphing</h3>
+<div id="appDinset" style="margin-left: 15px;">
+<p>This program is somewhat similar to program A__word_morphing, but
+it does the recognition on a dataset of Chinese characters that has a
+specific file format for the character images.  The dataset is the
+Chinese Academy of Sciences Institute of Automation (CASIA)
+handwriting database.  I did experiments recognizing the test set of
+HWDB1.0 using the training data from both HWDB1.0 and HWDB1.1.  Our
+accuracy was almost 70% on this very large dataset (2,284,633 training
+images and 334,304 test images).  That is somewhat impressive
+considering our method was not designed with the characteristics of
+Chinese handwriting in mind and we just applied our recognition method
+straight out of the box to Chinese handwriting with no real changes to
+the algorithm.  However, the state of the art for recognition methods
+designed specificially for Chinese characters is significantly higher
+for this dataset (about 90% accuracy).  There is also a program in the
+directory that extracts images from the .gnt files of the dataset and
+saves them as .pgm files for more convenient analysis of the
+images.</p>
+</div>
+
+</div>
+
+<a name="datasetsection"></a>
+<h2>Datasets</h2>
+<div id="datasetsdiv" style="margin-left: 20px;">
+<p>This release is not an end-to-end handwriting recognition solution
+that takes documents as input and gives transcriptions as output.  It
+is only a word recognition engine.  Programs A and C take sequentially
+numbered word images as input, with the ground-truth labels and
+threshold values embedded in the images as comments.  Data for a given
+dataset should be in a single directory and images should use the
+naming scheme thresh_w_NNNNNNNN.pgm where NNNNNNNN is an 8-digit
+sequential number (leading zeros are expected if the number is fewer
+than 8 digits).  The image should already be binarized / thresholded
+so it only has black ink and white background (no other levels of
+gray), but still saved as an 8-bit grayscale pgm image.  The programs
+expect the input files to have 3 comments in them that specify (in
+order): the threshold value used to binarize them (not currently
+used), the ascii text of the ground truth label of the word, and a
+page number (not currently used in these programs).  Alternatively, if
+saved from DImage objects, there can be a proprty value set for
+"label" instead of the 3 unnamed comment values.</p>
+<p>We provide an example dataset in the
+directory <code>datasets/smith_jhl_vol1_lasso/smith_jhl_vol1_lasso.prj_intermediates</code>.
+Pre-binarization grayscale versions of the word images are also
+included in the directory, named w_NNNNNNNN.pgm.  Full-page images are
+included one directory above the image files, along with a .prj file
+that contains the groundtruth labels and the coordinates of
+manually-drawn lassos around the words that were used to segment the
+words to create the dataset.
+</div>
+
+
+<a name="legalsection"></a>
+<h2>Legal</h2>
+
+<div id="legaldiv" style="margin-left: 20px;">
+<p>
+Copyright (c) 2013, Brigham Young University.<br>
+All rights reserved.</p>
+
+<p>This software is protected by copyright and also includes the
+embodiment of an invention that has a patent pending.  Any use, copy,
+or other dealings in the software must be licensed by Brigham Young
+University.  For licensing information, contact the Brigham Young
+University Technology Transfer Office:
+<pre>
+  Technology Transfer Office
+  3760 Harold B. Lee Library
+  Brigham Young University
+  Provo, UT 84602-6844
+  Phone: (801) 422-6266
+  FAX: (801) 422-0463</pre>
+</p>
+</div>
+<div id="legaldivblock" style="margin-left: 20px; border-style:solid; border-color:#a0a0a0; padding:5px;">
+The following notices are included for code that is not written by us but that is either linked by or incorporated into our project (or that we have provided the option to do so with specific compile-time options):
+
+<h3>JPEG support in DImageIO class</h3>
+<p>"This software is based in part on the work of the Independent JPEG Group"</p>
+<h3>PNG support in DImageIO class</h3>
+<p>The license with the libpng source includes the statement:
+"The Contributing Authors and Group 42, Inc. specifically permit,
+without fee, and encourage the use of this source code as a component
+to supporting the PNG file format in commercial products.  If you use
+this source code in a product, acknowledgment is not required but
+would be appreciated."</p>
+<h3>TIFF support in DImageIO class</h3>
+<p>Copyright (c) 1988-1997 Sam Leffler<br>
+Copyright (c) 1991-1997 Silicon Graphics, Inc.</p>
+
+<p>Permission to use, copy, modify, distribute, and sell this software and 
+its documentation for any purpose is hereby granted without fee, provided
+that (i) the above copyright notices and this permission notice appear in
+all copies of the software and related documentation, and (ii) the names of
+Sam Leffler and Silicon Graphics may not be used in any advertising or
+publicity relating to the software without the specific, prior written
+permission of Sam Leffler and Silicon Graphics.</p>
+
+<p>THE SOFTWARE IS PROVIDED "AS-IS" AND WITHOUT WARRANTY OF ANY KIND, 
+EXPRESS, IMPLIED OR OTHERWISE, INCLUDING WITHOUT LIMITATION, ANY 
+WARRANTY OF MERCHANTABILITY OR FITNESS FOR A PARTICULAR PURPOSE.</P>
+
+<p>IN NO EVENT SHALL SAM LEFFLER OR SILICON GRAPHICS BE LIABLE FOR
+ANY SPECIAL, INCIDENTAL, INDIRECT OR CONSEQUENTIAL DAMAGES OF ANY KIND,
+OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
+WHETHER OR NOT ADVISED OF THE POSSIBILITY OF DAMAGE, AND ON ANY THEORY OF 
+LIABILITY, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE 
+OF THIS SOFTWARE.</p>
+
+<h3>Bilateral Filter in DBilateralFilter class</h3>
+<p>The code for the default filter type in
+  the <code>DBilateralFilter</code> class, is based on code provided
+  online by Sylvain Paris and Fr&eacute;do Durand.  I have modified
+  their code to work within this library framework.</p>
+
+  <p>Please note that they request you cite their paper if you use
+  their code in your research, so you will want to look up the full 
+  citations for the following:
+<pre>     
+   Sylvain Paris and Fr&eacute;do Durand, "A Fast Approximation of the Bilateral
+   Filter using a Signal Processing Approach"  European Conference on
+   Computer Vision (ECCV'06).
+
+   Sylvain Paris and Fr&eacute;do Durand, "A Fast Approximation of the Bilateral
+   Filter using a Signal Processing Approach"  MIT technical report 2006
+   (MIT-CSAIL-TR-2006-073).
+</pre>
+
+
+  Also, the following copyrights and licenses apply to various parts of
+  the code:
+<pre>
+
+   Copyright (c) 2006, Sylvain Paris and Fr&eacute;do Durand
+
+   Permission is hereby granted, free of charge, to any person
+   obtaining a copy of this software and associated documentation
+   files (the "Software"), to deal in the Software without
+   restriction, including without limitation the rights to use, copy,
+   modify, merge, publish, distribute, sublicense, and/or sell copies
+   of the Software, and to permit persons to whom the Software is
+   furnished to do so, subject to the following conditions:
+
+   The above copyright notice and this permission notice shall be
+   included in all copies or substantial portions of the Software.
+
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+   EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+   MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+   NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
+   HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+   WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+   DEALINGS IN THE SOFTWARE.
+
+   ---------
+
+   Copyright (c) 2004, Sylvain Paris and Francois Sillion
+   All rights reserved.
+
+   Redistribution and use in source and binary forms, with or without
+   modification, are permitted provided that the following conditions are
+   met:
+
+      * Redistributions of source code must retain the above copyright
+      notice, this list of conditions and the following disclaimer.
+    
+      * Redistributions in binary form must reproduce the above
+      copyright notice, this list of conditions and the following
+      disclaimer in the documentation and/or other materials provided
+      with the distribution.
+
+      * Neither the name of ARTIS, GRAVIR-IMAG nor the names of its
+      contributors may be used to endorse or promote products derived
+      from this software without specific prior written permission.
+
+   THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+   "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+   LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+   A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+   OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+   SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+   LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+   DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+   THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+   (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+   OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+</pre>
+</p>
+</div>
+</body>
