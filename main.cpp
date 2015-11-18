@@ -1,4 +1,5 @@
 #include <iostream>
+#include <assert.h>
 #include "dimage.h"
 #include "dwordfeatures.h"
 #include "ddynamicprogramming.h"
@@ -344,7 +345,11 @@ void findMatching_exemplar_grow(string similar, DImage img1, string word1, DImag
     double bestScore=9999;
     double bestScan;
     
-    for (double scan = 0; scan<1.5; scan +=0.1)
+    int bandRadius = 100;
+    double bandCost = 100;
+	double nonDiagonalCost = 100;
+    
+    for (double scan = 0; scan<1.0; scan +=0.1)
     {
     
         DImage testPortion1 = getTestPortion(similar,img1,word1,1,scan);
@@ -353,10 +358,12 @@ void findMatching_exemplar_grow(string similar, DImage img1, string word1, DImag
         
         DFeatureVector fv1 = DWordFeatures::extractWordFeatures(testPortion1);
         DFeatureVector fvE = DWordFeatures::extractWordFeatures(examplar);
+        fvE.blank[0]=true;
+        fvE.blank[fvE.vectLen-1]=true;
         
         int path12len;
         int path12[(1+fv1.vectLen)*(1+fvE.vectLen)];
-        double cost12 = DDynamicProgramming::findDPAlignment(fv1,fvE,100,1000,1000,&path12len,path12);
+        double cost12 = DDynamicProgramming::findDPAlignment(fv1,fvE,bandRadius,bandCost,nonDiagonalCost,&path12len,path12);
         if (cost12<bestScore)
         {
             bestScore=cost12;
@@ -371,25 +378,32 @@ void findMatching_exemplar_grow(string similar, DImage img1, string word1, DImag
             
             DFeatureVector fv1 = DWordFeatures::extractWordFeatures(testPortion1);
             DFeatureVector fvE = DWordFeatures::extractWordFeatures(examplar);
+            fvE.blank[0]=true;
+            fvE.blank[fvE.vectLen-1]=true;
             
             int path12len;
             int path12[(1+fv1.vectLen)*(1+fvE.vectLen)];
-            double cost12 = DDynamicProgramming::findDPAlignment(fv1,fvE,100,1000,1000,&path12len,path12);
+            double cost12 = DDynamicProgramming::findDPAlignment(fv1,fvE,bandRadius,bandCost,nonDiagonalCost,&path12len,path12);
             if (cost12<bestScore)
             {
                 bestScore=cost12;
-                bestScan=scan;
+                bestScan=-1*scan;
             }
         }
         
     }
     
+    cout << "best scan: " << bestScan << ", score: " << bestScore << endl;
+    
     DImage testPortion1 = getTestPortion(similar,img1,word1,1,bestScan);
     DFeatureVector fv1 = DWordFeatures::extractWordFeatures(testPortion1);
     DFeatureVector fvE = DWordFeatures::extractWordFeatures(examplar);
+    fvE.blank[0]=true;
+    fvE.blank[fvE.vectLen-1]=true;
     int path12len;
     int path12[(1+fv1.vectLen)*(1+fvE.vectLen)];
-    double cost12 = DDynamicProgramming::findDPAlignment(fv1,fvE,100,100,0,&path12len,path12);
+    double cost12 = DDynamicProgramming::findDPAlignment(fv1,fvE,bandRadius,bandCost,nonDiagonalCost,&path12len,path12);
+    assert(fabs(cost12-bestScore)<.001);
     DImage warped12 = DDynamicProgramming::piecewiseLinearWarpDImage(testPortion1,examplar.width(),path12len,path12,false);
     
     testPortion1.save("testPortion1.png",DImage::DFileFormat_png);

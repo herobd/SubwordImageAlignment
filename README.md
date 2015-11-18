@@ -5,3 +5,5 @@ BYU
 This is a project to come up with an effective method to align to word images on matching n-grams. This can help generate more accurate training data.
 
 This is still in the birthing stages of development.
+
+This relies on Doug Kennard's image processing code. 
