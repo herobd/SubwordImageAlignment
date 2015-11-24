@@ -182,7 +182,7 @@ void trimImg(DImage &img, int noiseRemovalSize)
 
 //This returns a subimage centered around the desired n-gram
 //testPortionScale refers to how many times larger the portion should be to the expected size of the n-gram
-DImage getTestPortion(const string& similar, const DImage& img, const string& word, double testPortionScale)
+DImage getTestPortion(const string& similar, const DImage& img, const string& word, double testPortionScale, int* start=NULL, int* end=NULL)
 {
     double startLoc = word.find(similar) / (0.5 + word.length());
     double portion = similar.length() / (0.5 + word.length());
@@ -192,8 +192,17 @@ DImage getTestPortion(const string& similar, const DImage& img, const string& wo
     int testPortionEnd=min((double)img.width(), ((startLoc-(portion*(testPortionScale-1)/2)) + (testPortionScale*portion))*img.width());
     
     int testPortionWidth=testPortionEnd-testPortionStart;
-    
+    if (start != NULL && end != NULL)
+    {
+        *start = testPortionStart;
+        *end = testPortionEnd;
+    }
     return img.copy(testPortionStart,0,testPortionWidth,img.height());
+}
+
+DImage getTestPortion(const string& similar, const DImage& img, int start, int end)
+{
+    return img.copy(start,0,end-start,img.height());
 }
 
 DImage getTestPortion(const string& similar, const DImage& img, const string& word, double testPortionScale, double portionOffset)
@@ -348,11 +357,14 @@ void findMatching_exemplar_grow(string similar, DImage img1, string word1, DImag
     int bandRadius = 100;
     double bandCost = 100;
 	double nonDiagonalCost = 100;
+
+    double testPortionScale=.7;
+    int growRate=5;
     
-    for (double scan = 0; scan<1.0; scan +=0.1)
+    for (double scan = 0; scan<0.7; scan +=0.1)
     {
     
-        DImage testPortion1 = getTestPortion(similar,img1,word1,1,scan);
+        DImage testPortion1 = getTestPortion(similar,img1,word1,testPortionScale,scan);
         testPortion1.save(("tmp/testPortion_"+to_string(scan)+".png").c_str(),DImage::DFileFormat_png);
         
         
@@ -372,7 +384,7 @@ void findMatching_exemplar_grow(string similar, DImage img1, string word1, DImag
         
         if (scan != 0.0)
         {
-            DImage testPortion1 = getTestPortion(similar,img1,word1,1,-1*scan);
+            DImage testPortion1 = getTestPortion(similar,img1,word1,testPortionScale,-1*scan);
             testPortion1.save(("tmp/testPortion_-"+to_string(scan)+".png").c_str(),DImage::DFileFormat_png);
             
             
@@ -395,7 +407,8 @@ void findMatching_exemplar_grow(string similar, DImage img1, string word1, DImag
     
     cout << "best scan: " << bestScan << ", score: " << bestScore << endl;
     
-    DImage testPortion1 = getTestPortion(similar,img1,word1,1,bestScan);
+    int start, end;
+    DImage testPortion1 = getTestPortion(similar,img1,word1,testPortionScale,bestScan,&start,&end);
     DFeatureVector fv1 = DWordFeatures::extractWordFeatures(testPortion1);
     DFeatureVector fvE = DWordFeatures::extractWordFeatures(examplar);
     fvE.blank[0]=true;
@@ -408,4 +421,50 @@ void findMatching_exemplar_grow(string similar, DImage img1, string word1, DImag
     
     testPortion1.save("testPortion1.png",DImage::DFileFormat_png);
     warped12.save("warped12.png",DImage::DFileFormat_png);
+    
+    
+    //Grow
+    //TODO
+    double scorePrev=99999;
+    while(1)
+    {
+        DImage testPortionS = getTestPortion(similar,img1,start-growRate,end);
+        DImage testPortionB = getTestPortion(similar,img1,start,end+growRate);
+        
+        DFeatureVector fvS = DWordFeatures::extractWordFeatures(testPortionS);
+        DFeatureVector fvE = DWordFeatures::extractWordFeatures(examplar);
+        fvE.blank[0]=true;
+        fvE.blank[fvE.vectLen-1]=true;
+        double scoreS = DDynamicProgramming::findDPAlignment(fvS,fvE,bandRadius,bandCost,nonDiagonalCost);
+        
+        DFeatureVector fvB = DWordFeatures::extractWordFeatures(testPortionS);
+        double scoreB = DDynamicProgramming::findDPAlignment(fvB,fvE,bandRadius,bandCost,nonDiagonalCost);
+        
+        //do that again
+        
+        if (scoreS < scoreB)
+        {
+            if (scoreS <= scorePrev)
+            {
+                start-=growRate;
+                scorePrev=scoreS;
+            }
+            else
+            {
+                break;
+            }
+        }
+        else
+        {
+            if (scoreB <= scorePrev)
+            {
+                end+=growRate;
+                scorePrev=scoreB;
+            }
+            else
+            {
+                break;
+            }
+        }
+    }
 }
