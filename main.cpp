@@ -432,9 +432,6 @@ void findMatching_exemplar_grow(string similar, DImage img1, string word1, DImag
         DImage testPortionB = getTestPortion(similar,img1,start,end+growRate);
         
         DFeatureVector fvS = DWordFeatures::extractWordFeatures(testPortionS);
-        DFeatureVector fvE = DWordFeatures::extractWordFeatures(examplar);
-        fvE.blank[0]=true;
-        fvE.blank[fvE.vectLen-1]=true;
         double scoreS = DDynamicProgramming::findDPAlignment(fvS,fvE,bandRadius,bandCost,nonDiagonalCost);
         
         DFeatureVector fvB = DWordFeatures::extractWordFeatures(testPortionS);
