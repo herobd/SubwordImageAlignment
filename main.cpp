@@ -205,7 +205,7 @@ DImage getTestPortion(const string& similar, const DImage& img, int start, int e
     return img.copy(start,0,end-start,img.height());
 }
 
-DImage getTestPortion(const string& similar, const DImage& img, const string& word, double testPortionScale, double portionOffset)
+DImage getTestPortion(const string& similar, const DImage& img, const string& word, double testPortionScale, double portionOffset, int* start=NULL, int* end=NULL)
 {
     double startLoc = word.find(similar) / (0.5 + word.length());
     double portion = similar.length() / (0.5 + word.length());
@@ -215,6 +215,11 @@ DImage getTestPortion(const string& similar, const DImage& img, const string& wo
     int testPortionEnd=min((double)img.width(), ((startLoc-(portion*(testPortionScale-1)/2)) + (testPortionScale*portion) + portion*portionOffset)*img.width());
     
     int testPortionWidth=testPortionEnd-testPortionStart;
+    if (start != NULL && end != NULL)
+    {
+        *start = testPortionStart;
+        *end = testPortionEnd;
+    }
     
     return img.copy(testPortionStart,0,testPortionWidth,img.height());
 }
@@ -464,4 +469,6 @@ void findMatching_exemplar_grow(string similar, DImage img1, string word1, DImag
             }
         }
     }
+    DImage testPortionGrown = getTestPortion(similar,img1,start,end);
+    testPortionGrown.save("testPortionGrown.png",DImage::DFileFormat_png);
 }
